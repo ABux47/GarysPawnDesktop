@@ -1,45 +1,50 @@
-name: Build Windows EXE
+name: Build Windows EXEs
 
 on:
+  workflow_dispatch:        # run manually
   push:
-    tags: [ 'v*' ]   # build only when you create a tag like v1.0.0
-  workflow_dispatch: # …or run manually
+    tags: [ 'v*' ]          # run automatically on tags like v1.1.0
 
 jobs:
   build:
     runs-on: windows-latest
 
+    strategy:
+      matrix:
+        arch: [ win-x64, win-x86 ]   # ← both bitnesses
+    name: Publish ${{ matrix.arch }}
+
     steps:
-    - name: Checkout
+    - name: Checkout source
       uses: actions/checkout@v4
 
-    - name: Setup .NET 8 with MAUI
+    - name: Install .NET 8 + MAUI workload
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
-        # install maui workload
-        dotnet-quality: ga
     - run: dotnet workload install maui
 
-    - name: Publish self-contained exe
+    - name: Publish self-contained single-file
       run: |
-        dotnet publish GarysPawnDesktop.csproj `
-          -c Release `
-          -f net8.0-windows10.0.19041.0 `
-          -r win-x64 `
-          -p:WindowsPackageType=None `
-          -p:PublishSingleFile=true `
-          -p:SelfContained=true `
-          -o publish
+        dotnet publish GarysPawnDesktop.csproj ^
+          -c Release ^
+          -f net8.0-windows10.0.19041.0 ^
+          -r ${{ matrix.arch }} ^
+          -p:PublishSingleFile=true ^
+          -p:SelfContained=true ^
+          -p:WindowsPackageType=None ^
+          -o publish-${{ matrix.arch }}
 
-    - name: Upload artifact
+    # ───────────  make artifacts downloadable from the run  ────────────
+    - name: Upload ${{ matrix.arch }} artifact
       uses: actions/upload-artifact@v4
       with:
-        name: GarysPawnDesktop-win-x64
-        path: publish/GarysPawnDesktop.exe
+        name: GarysPawnDesktop-${{ matrix.arch }}
+        path: publish-${{ matrix.arch }}/GarysPawnDesktop.exe
 
+    # ───────────  attach EXEs to a Release when run on a tag  ──────────
     - name: Attach EXE to GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: publish/GarysPawnDesktop.exe
+        files: publish-${{ matrix.arch }}/GarysPawnDesktop.exe
