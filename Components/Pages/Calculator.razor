@@ -1,0 +1,138 @@
+﻿@page "/"
+@inject IJSRuntime JSRuntime
+
+<h3>Cash Register Calculator</h3>
+
+<div class="container">
+    <EditForm Model="@inputModel" OnValidSubmit="CalculateResults">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row">
+            <!-- Inputs column -->
+            <div class="col-md-6 input-section">
+                <h5>Inputs</h5>
+
+                <div class="form-group">
+                    <label>Beginning Cash on Hand</label><InputNumber @bind-Value="inputModel.BeginningCashOnHand" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" />
+                </div>
+                <div class="form-group"><label>Sales</label><InputNumber @bind-Value="inputModel.Sales" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Pawn Fees</label><InputNumber @bind-Value="inputModel.PawnFees" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Pawn Redeem</label><InputNumber @bind-Value="inputModel.PawnRedeem" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Wholesale / Gift Card</label><InputNumber @bind-Value="inputModel.WholesaleGiftCard" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Register Tax</label><InputNumber @bind-Value="inputModel.RegisterTax" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Layaways Including Tax</label><InputNumber @bind-Value="inputModel.LayawaysIncludingTax" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Total COH</label><InputNumber @bind-Value="inputModel.TotalCOH" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Purchase</label><InputNumber @bind-Value="inputModel.Purchase" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>New Pawns</label><InputNumber @bind-Value="inputModel.NewPawns" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Bank Deposits</label><InputNumber @bind-Value="inputModel.BankDeposits" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Cash PD Out Supplies</label><InputNumber @bind-Value="inputModel.CashPDOutSupplies" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Freight & Postage</label><InputNumber @bind-Value="inputModel.FreightPostage" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Yard & Pest Control</label><InputNumber @bind-Value="inputModel.YardPestControl" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Gift Card Redeemed</label><InputNumber @bind-Value="inputModel.GiftCardRedeemed" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Misc</label><InputNumber @bind-Value="inputModel.Misc" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+
+            </div>
+
+            <div class="col-md-6 output-section">
+                <h5>Outputs</h5>
+                @foreach (var output in outputItems)
+                {
+                    <div class="form-group">
+                        <label>@output.Key</label>
+                        <input class="form-control"
+                               value="@output.Value.ToString("F2")"
+                               disabled />
+                    </div>
+                }
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Calculate</button>
+        <button type="button" class="btn btn-secondary" @onclick="SaveToFile">Download</button>
+    </EditForm>
+</div>
+
+@code {
+    public class InputModel
+    {
+        public decimal BeginningCashOnHand { get; set; }
+        public decimal Sales { get; set; }
+        public decimal PawnFees { get; set; }
+        public decimal PawnRedeem { get; set; }
+        public decimal WholesaleGiftCard { get; set; }
+        public decimal RegisterTax { get; set; }
+        public decimal LayawaysIncludingTax { get; set; }
+        public decimal TotalCOH { get; set; }
+        public decimal Purchase { get; set; }
+        public decimal NewPawns { get; set; }
+        public decimal BankDeposits { get; set; }
+        public decimal CashPDOutSupplies { get; set; }
+        public decimal FreightPostage { get; set; }
+        public decimal YardPestControl { get; set; }
+        public decimal GiftCardRedeemed { get; set; }
+        public decimal Misc { get; set; }
+    }
+
+    private InputModel inputModel = new();
+    private Dictionary<string, decimal> outputItems = new()
+    {
+        {"Beginning COH", 0 },
+        {"Total Register Sales", 0 },
+        {"Layaways", 0 },
+        {"Layaway Tax", 0 },
+        {"Total Tax Collected", 0 },
+        {"Ending COH", 0 },
+        {"Over or Short", 0 }
+    };
+
+    private const decimal tax = 0.07M;
+
+    private void CalculateResults()
+    {
+        decimal lay = Math.Round(inputModel.LayawaysIncludingTax / (1 + tax), 2);
+        decimal trs = Math.Round(inputModel.Sales + lay, 2);
+        decimal lt = Math.Round(inputModel.LayawaysIncludingTax - lay, 2);
+        decimal ttc = Math.Round(inputModel.RegisterTax + lt, 2);
+
+        decimal[] leftECOH = { trs, ttc, inputModel.PawnFees, inputModel.PawnRedeem, inputModel.WholesaleGiftCard };
+        decimal[] rightECOH = {
+            inputModel.Purchase, inputModel.NewPawns, inputModel.BankDeposits,
+            inputModel.CashPDOutSupplies, inputModel.FreightPostage, inputModel.YardPestControl,
+            inputModel.GiftCardRedeemed, inputModel.Misc
+    };
+        decimal ecoh = Math.Round(inputModel.BeginningCashOnHand + leftECOH.Sum() - rightECOH.Sum(), 2);
+        decimal oos = Math.Round(inputModel.TotalCOH - ecoh, 2);
+
+        outputItems["Beginning COH"] = inputModel.BeginningCashOnHand;
+        outputItems["Total Register Sales"] = trs;
+        outputItems["Layaways"] = lay;
+        outputItems["Layaway Tax"] = lt;
+        outputItems["Total Tax Collected"] = ttc;
+        outputItems["Ending COH"] = ecoh;
+        outputItems["Over or Short"] = oos;
+    }
+
+    private async Task SaveToFile()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Inputs:");
+        foreach (var prop in typeof(InputModel).GetProperties())
+        {
+            sb.AppendLine($"{prop.Name}: {prop.GetValue(inputModel)}");
+        }
+
+        sb.AppendLine("\nOutputs:");
+        foreach (var kvp in outputItems)
+        {
+            sb.AppendLine($"{kvp.Key}: {kvp.Value}");
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+        var base64 = Convert.ToBase64String(bytes);
+        var fileName = $"EndOfDay_{DateTime.Today:MMddyyyy}.txt";
+        var fileUrl = $"data:text/plain;base64,{base64}";
+
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, fileUrl);
+    }
+}
