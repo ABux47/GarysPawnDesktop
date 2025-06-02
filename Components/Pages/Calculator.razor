@@ -1,7 +1,14 @@
-﻿@page "/"
-@inject IJSRuntime JSRuntime
+﻿@using GarysPawnDesktop.Helpers
+@page "/"
+@* @inject IJSRuntime JSRuntime
+ *@
+<h3>
+    Cash Register Calculator <span style="color:#A0522D;">@DateTime.Today.ToString("MMMM dd, yyyy")
+        @DateTime.Now.ToString("h:mm:ss tt")   
+    </span>
+</h3>
 
-<h3>Cash Register Calculator</h3>
+
 
 <div class="container">
     <EditForm Model="@inputModel" OnValidSubmit="CalculateResults">
@@ -13,6 +20,8 @@
             <div class="col-md-6 input-section">
                 <h5>Inputs</h5>
 
+                @* Setting up form with validation for decimals *@
+
                 <div class="form-group">
                     <label>Beginning Cash on Hand</label><InputNumber @bind-Value="inputModel.BeginningCashOnHand" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" />
                 </div>
@@ -22,7 +31,7 @@
                 <div class="form-group"><label>Wholesale / Gift Card</label><InputNumber @bind-Value="inputModel.WholesaleGiftCard" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
                 <div class="form-group"><label>Register Tax</label><InputNumber @bind-Value="inputModel.RegisterTax" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
                 <div class="form-group"><label>Layaways Including Tax</label><InputNumber @bind-Value="inputModel.LayawaysIncludingTax" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
-                <div class="form-group"><label>Total COH</label><InputNumber @bind-Value="inputModel.TotalCOH" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
+                <div class="form-group"><label>Total Cash On Hand</label><InputNumber @bind-Value="inputModel.TotalCOH" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
                 <div class="form-group"><label>Purchase</label><InputNumber @bind-Value="inputModel.Purchase" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
                 <div class="form-group"><label>New Pawns</label><InputNumber @bind-Value="inputModel.NewPawns" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
                 <div class="form-group"><label>Bank Deposits</label><InputNumber @bind-Value="inputModel.BankDeposits" @bind-Value:format="F2" class="form-control" @oninput="CalculateResults" /></div>
@@ -72,17 +81,20 @@
         public decimal YardPestControl { get; set; }
         public decimal GiftCardRedeemed { get; set; }
         public decimal Misc { get; set; }
+        
     }
 
     private InputModel inputModel = new();
+
+
     private Dictionary<string, decimal> outputItems = new()
     {
-        {"Beginning COH", 0 },
+       
         {"Total Register Sales", 0 },
         {"Layaways", 0 },
         {"Layaway Tax", 0 },
         {"Total Tax Collected", 0 },
-        {"Ending COH", 0 },
+        {"Ending Cash On Hand", 0 },
         {"Over or Short", 0 }
     };
 
@@ -90,12 +102,18 @@
 
     private void CalculateResults()
     {
+        // Layaway base (No Tax), users enters with tax and tax is removed rounded to two cents
         decimal lay = Math.Round(inputModel.LayawaysIncludingTax / (1 + tax), 2);
+        // Total register sales adds sales and before tax part of lawaway payments. Total revenue wihtout tax
         decimal trs = Math.Round(inputModel.Sales + lay, 2);
+        //Layaway tax subtract the base from the tax inclusive amount to isolate just the tax
         decimal lt = Math.Round(inputModel.LayawaysIncludingTax - lay, 2);
+        //Total tax collected register tax + layaway specific tax
         decimal ttc = Math.Round(inputModel.RegisterTax + lt, 2);
 
+        //left side is chash added to the drawer today
         decimal[] leftECOH = { trs, ttc, inputModel.PawnFees, inputModel.PawnRedeem, inputModel.WholesaleGiftCard };
+        //right side is cash that leaves the drawer 
         decimal[] rightECOH = {
             inputModel.Purchase, inputModel.NewPawns, inputModel.BankDeposits,
             inputModel.CashPDOutSupplies, inputModel.FreightPostage, inputModel.YardPestControl,
@@ -104,19 +122,24 @@
         decimal ecoh = Math.Round(inputModel.BeginningCashOnHand + leftECOH.Sum() - rightECOH.Sum(), 2);
         decimal oos = Math.Round(inputModel.TotalCOH - ecoh, 2);
 
-        outputItems["Beginning COH"] = inputModel.BeginningCashOnHand;
         outputItems["Total Register Sales"] = trs;
         outputItems["Layaways"] = lay;
         outputItems["Layaway Tax"] = lt;
         outputItems["Total Tax Collected"] = ttc;
-        outputItems["Ending COH"] = ecoh;
+        outputItems["Ending Cash On Hand"] = ecoh;
         outputItems["Over or Short"] = oos;
     }
 
     private async Task SaveToFile()
     {
+
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Inputs:");
+
+        sb.AppendLine($"{@DateTime.Today.ToString("MMMM dd, yyyy")}");
+
+        sb.AppendLine($"{@DateTime.Now.ToString("h:mm:ss tt")}");
+
+        sb.AppendLine("\nInputs:");
         foreach (var prop in typeof(InputModel).GetProperties())
         {
             sb.AppendLine($"{prop.Name}: {prop.GetValue(inputModel)}");
@@ -132,7 +155,26 @@
         var base64 = Convert.ToBase64String(bytes);
         var fileName = $"EndOfDay_{DateTime.Today:MMddyyyy}.txt";
         var fileUrl = $"data:text/plain;base64,{base64}";
+        await RegisterFileSaver.SaveEndOfDayAsync(sb.ToString());   // ▼
 
-        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, fileUrl);
+
+        // await JSRuntime.InvokeVoidAsync("downloadFile", fileName, fileUrl);
     }
+}
+
+@code {
+    private System.Timers.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        _timer = new()
+            {
+                Interval = 1_000,   // 1 s so seconds tick
+                AutoReset = true,
+                Enabled = true
+            };
+        _timer.Elapsed += (_, _) => InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => _timer?.Dispose();
 }
