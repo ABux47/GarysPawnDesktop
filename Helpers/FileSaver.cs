@@ -12,7 +12,7 @@ public static class RegisterFileSaver
         Directory.CreateDirectory(targetDir);
 
         // File name with date + time so every save is unique
-        string fileName = $"EndOfDay{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
+        string fileName = $"EndOfDay_{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
         string fullPath = Path.Combine(targetDir, fileName);
 
         await File.WriteAllTextAsync(fullPath, content);

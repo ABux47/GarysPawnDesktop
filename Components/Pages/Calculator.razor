@@ -139,26 +139,40 @@
 
         sb.AppendLine($"{@DateTime.Now.ToString("h:mm:ss tt")}");
 
-        sb.AppendLine("\nInputs:");
+        sb.AppendLine();
+
+        //-----------------------------------------------------------------
+        // 1.  INPUTS  (aligned)
+        //-----------------------------------------------------------------
+        sb.AppendLine("Inputs:");
+        int maxInputLabel = typeof(InputModel).GetProperties()
+                                              .Max(p => p.Name.Length);
+
         foreach (var prop in typeof(InputModel).GetProperties())
         {
-            sb.AppendLine($"{prop.Name}: {prop.GetValue(inputModel)}");
+            string label = prop.Name.PadRight(maxInputLabel + 1); // +1 for a space
+            string value = ((decimal)prop.GetValue(inputModel)!).ToString("F2");
+            sb.AppendLine($"{label}: {value}");
         }
 
-        sb.AppendLine("\nOutputs:");
+        //-----------------------------------------------------------------
+        // 2.  OUTPUTS  (aligned)
+        //-----------------------------------------------------------------
+        sb.AppendLine();
+        sb.AppendLine("Outputs:");
+        int maxOutputLabel = outputItems.Keys.Max(k => k.Length);
+
         foreach (var kvp in outputItems)
         {
-            sb.AppendLine($"{kvp.Key}: {kvp.Value}");
+            string label = kvp.Key.PadRight(maxOutputLabel + 1);
+            string value = kvp.Value.ToString("F2");
+            sb.AppendLine($"{label}: {value}");
         }
 
-        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
-        var base64 = Convert.ToBase64String(bytes);
-        var fileName = $"EndOfDay_{DateTime.Today:MMddyyyy}.txt";
-        var fileUrl = $"data:text/plain;base64,{base64}";
-        await RegisterFileSaver.SaveEndOfDayAsync(sb.ToString());   // ▼
-
-
-        // await JSRuntime.InvokeVoidAsync("downloadFile", fileName, fileUrl);
+        // Write to EndOfDay\YYYY-MM\cash_register_yyyy-MM-dd_HHmmss.txt
+        await RegisterFileSaver.SaveEndOfDayAsync(sb.ToString());
+    }
+    // await JSRuntime.InvokeVoidAsync("downloadFile", fileName, fileUrl);
     }
 }
 
